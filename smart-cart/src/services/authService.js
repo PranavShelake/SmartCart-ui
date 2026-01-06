@@ -3,7 +3,7 @@ import { API_BASE_URL } from '../utils/constants';
 
 const authService = {
   signup: async (email, password, fullName) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/signup`, {
+    const res = await fetch(`${API_BASE_URL}/auth/signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password, full_name: fullName })
@@ -16,7 +16,7 @@ const authService = {
   },
 
   verifySignup: async (email, otp) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/verify-signup`, {
+    const res = await fetch(`${API_BASE_URL}/auth/verify-signup`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, otp })
@@ -29,7 +29,7 @@ const authService = {
   },
 
   resendVerification: async (email) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/resend-verification`, {
+    const res = await fetch(`${API_BASE_URL}/auth/resend-verification`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -42,7 +42,7 @@ const authService = {
   },
 
   login: async (email, password) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    const res = await fetch(`${API_BASE_URL}/auth/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, password })
@@ -55,7 +55,7 @@ const authService = {
   },
 
   sendOTP: async (email) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
+    const res = await fetch(`${API_BASE_URL}/auth/send-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -68,7 +68,7 @@ const authService = {
   },
 
   verifyOTP: async (email, otp) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
+    const res = await fetch(`${API_BASE_URL}/auth/verify-otp`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, otp })
@@ -81,7 +81,7 @@ const authService = {
   },
 
   forgotPassword: async (email) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/forgot-password`, {
+    const res = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email })
@@ -94,7 +94,7 @@ const authService = {
   },
 
   resetPassword: async (email, resetToken, newPassword) => {
-    const res = await fetch(`${API_BASE_URL}/api/auth/reset-password`, {
+    const res = await fetch(`${API_BASE_URL}/auth/reset-password`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email, reset_token: resetToken, new_password: newPassword })
@@ -107,7 +107,7 @@ const authService = {
   },
 
   getProfile: async (token) => {
-    const res = await fetch(`${API_BASE_URL}/api/user/profile`, {
+    const res = await fetch(`${API_BASE_URL}/user/profile`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!res.ok) {

@@ -5,7 +5,7 @@ import { API_BASE_URL } from '../../utils/constants';
 
 // Async thunk to fetch shopping history
 export const fetchShoppingHistory = createAsyncThunk(
-  'shoppingHistory/fetchAll',
+  'shoppingHistory/',
   async (_, { rejectWithValue }) => {
     try {
       const response = await axios.get(`${API_BASE_URL}/shopping-history`);
