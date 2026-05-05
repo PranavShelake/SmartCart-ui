@@ -2,8 +2,6 @@ import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
 import type { PayloadAction } from "@reduxjs/toolkit";
 import { apiClient } from "../../api/client";
 
-// ─── Types ────────────────────────────────────────────────────
-
 export interface UserProfile {
   user_id: string;
   email: string;
@@ -17,9 +15,9 @@ export interface UserProfile {
 interface AuthState {
   user: UserProfile | null;
   isAuthenticated: boolean;
-  // "loading" = first-time boot check (are we logged in?)
-  // "idle"    = nothing happening
-  // "pending" = login/logout in progress
+  // ✅ isBootstrapped: true once we've checked localStorage on app load
+  // This is what ProtectedRoute waits for — NOT status
+  isBootstrapped: boolean;
   status: "idle" | "loading" | "pending" | "failed";
   error: string | null;
 }
@@ -27,28 +25,19 @@ interface AuthState {
 const initialState: AuthState = {
   user: null,
   isAuthenticated: false,
+  isBootstrapped: false,
   status: "idle",
   error: null,
 };
 
-// ─── Thunks ───────────────────────────────────────────────────
-
-/**
- * Called once on app boot (in Layout.tsx).
- * Fetches the real user profile from the backend.
- * If the access token is expired, the apiClient interceptor
- * will silently refresh it before this request completes.
- */
 export const bootstrapAuth = createAsyncThunk(
   "auth/bootstrap",
   async (_, { rejectWithValue }) => {
     try {
       const token = localStorage.getItem("access_token");
+      // ✅ No token = not logged in. Don't hit the API at all.
       if (!token) return rejectWithValue("No token");
 
-      // /users/me gives us the full profile (name, phone, etc.)
-      // /auth/me is lightweight (JWT claims only — no DB call)
-      // We use /users/me here because TopBar needs name + role
       const { data } = await apiClient.get("/users/me");
       return data.data as UserProfile;
     } catch {
@@ -57,16 +46,9 @@ export const bootstrapAuth = createAsyncThunk(
   }
 );
 
-/**
- * Called after a successful login API call.
- * We receive the access token + user object from the login response.
- */
 export const loginSuccess = createAsyncThunk(
   "auth/loginSuccess",
-  async (
-    payload: { access_token: string; user: UserProfile },
-    { rejectWithValue }
-  ) => {
+  async (payload: { access_token: string; user: UserProfile }, { rejectWithValue }) => {
     try {
       localStorage.setItem("access_token", payload.access_token);
       return payload.user;
@@ -76,39 +58,32 @@ export const loginSuccess = createAsyncThunk(
   }
 );
 
-/**
- * Logs out from the current device.
- * Backend revokes the refresh token; we clear local state.
- */
-export const logout = createAsyncThunk(
-  "auth/logout",
-  async (_, { rejectWithValue }) => {
-    try {
-      await apiClient.post("/auth/logout");
-    } catch {
-      // Even if the API call fails, we still clear local state
-      // so the user isn't stuck logged in on the frontend
-    } finally {
-      localStorage.removeItem("access_token");
-    }
+export const logout = createAsyncThunk("auth/logout", async () => {
+  try {
+    await apiClient.post("/auth/logout");
+  } catch {
+    // Even if API fails, clear local state
+  } finally {
+    localStorage.removeItem("access_token");
   }
-);
-
-// ─── Slice ────────────────────────────────────────────────────
+});
 
 const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    // Use this if you need to update user fields locally after
-    // a profile edit, without re-fetching everything
     updateUserLocally(state, action: PayloadAction<Partial<UserProfile>>) {
-      if (state.user) {
-        state.user = { ...state.user, ...action.payload };
-      }
+      if (state.user) state.user = { ...state.user, ...action.payload };
     },
     clearError(state) {
       state.error = null;
+    },
+    // ✅ Called by the session-expired event listener in App.tsx
+    sessionExpired(state) {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.isBootstrapped = true;
+      state.status = "idle";
     },
   },
   extraReducers: (builder) => {
@@ -120,15 +95,14 @@ const authSlice = createSlice({
       .addCase(bootstrapAuth.fulfilled, (state, action) => {
         state.user = action.payload;
         state.isAuthenticated = true;
+        state.isBootstrapped = true; // ✅ done checking
         state.status = "idle";
-        state.error = null;
       })
       .addCase(bootstrapAuth.rejected, (state) => {
         state.user = null;
         state.isAuthenticated = false;
+        state.isBootstrapped = true; // ✅ done checking (user just isn't logged in)
         state.status = "idle";
-        // Don't set error here — a missing token on boot
-        // is expected (user just hasn't logged in yet)
       });
 
     // ── loginSuccess ───────────────────────────────────────
@@ -139,8 +113,8 @@ const authSlice = createSlice({
       .addCase(loginSuccess.fulfilled, (state, action) => {
         state.user = action.payload;
         state.isAuthenticated = true;
+        state.isBootstrapped = true;
         state.status = "idle";
-        state.error = null;
       })
       .addCase(loginSuccess.rejected, (state, action) => {
         state.status = "failed";
@@ -153,34 +127,27 @@ const authSlice = createSlice({
       state.isAuthenticated = false;
       state.status = "idle";
       state.error = null;
+      // isBootstrapped stays true — no need to re-check
     });
   },
 });
 
-export const { updateUserLocally, clearError } = authSlice.actions;
+export const { updateUserLocally, clearError, sessionExpired } = authSlice.actions;
 export default authSlice.reducer;
 
-// ─── Selectors ────────────────────────────────────────────────
-// Always use selectors — never access state.auth directly in components
+export const selectUser             = (s: { auth: AuthState }) => s.auth.user;
+export const selectIsAuthenticated  = (s: { auth: AuthState }) => s.auth.isAuthenticated;
+export const selectAuthStatus       = (s: { auth: AuthState }) => s.auth.status;
+export const selectIsBootstrapped   = (s: { auth: AuthState }) => s.auth.isBootstrapped;
 
-export const selectUser = (state: { auth: AuthState }) => state.auth.user;
-export const selectIsAuthenticated = (state: { auth: AuthState }) =>
-  state.auth.isAuthenticated;
-export const selectAuthStatus = (state: { auth: AuthState }) =>
-  state.auth.status;
-export const selectAuthError = (state: { auth: AuthState }) =>
-  state.auth.error;
-
-// Derived: full display name
-export const selectDisplayName = (state: { auth: AuthState }) => {
-  const u = state.auth.user;
+export const selectDisplayName = (s: { auth: AuthState }) => {
+  const u = s.auth.user;
   if (!u) return "";
   return `${u.first_name} ${u.last_name}`.trim();
 };
 
-// Derived: primary role (your backend sends roles as an array)
-export const selectPrimaryRole = (state: { auth: AuthState }) => {
-  const roles = state.auth.user?.roles ?? [];
+export const selectPrimaryRole = (s: { auth: AuthState }) => {
+  const roles = s.auth.user?.roles ?? [];
   if (roles.includes("admin")) return "Administrator";
   if (roles.includes("manager")) return "Manager";
   return "Customer";

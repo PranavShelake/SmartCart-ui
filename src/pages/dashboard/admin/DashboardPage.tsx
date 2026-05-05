@@ -2,7 +2,7 @@ import KpiCard from "./KpiCard";
 import SalesChart from "./SalesChart";
 import TopProducts from "./TopProducts";
 import RecentOrders from "./RecentOrders";
-import { kpiData } from "../../data/mockData";
+import { kpiData } from "./mockData";
 
 export default function DashboardPage() {
   return (

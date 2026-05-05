@@ -1,4 +1,4 @@
-import { topProducts } from "../../data/mockData";
+import { topProducts } from "./mockData";
 const stockStyle = { in:"text-teal-400", low:"text-amber-400", out:"text-red-400" };
 export default function TopProducts() {
   return (

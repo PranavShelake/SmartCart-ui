@@ -1,4 +1,4 @@
-import { recentOrders } from "../../data/mockData";
+import { recentOrders } from "./mockData";
 const avatarColor: Record<string,string> = {
   violet:"bg-violet-500/20 text-violet-400", blue:"bg-blue-500/20 text-blue-400",
   teal:"bg-teal-500/20 text-teal-400", amber:"bg-amber-500/20 text-amber-400",

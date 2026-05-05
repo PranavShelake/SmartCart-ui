@@ -1,10 +1,10 @@
-// src/pages/auth/LoginPage.tsx
-
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ShoppingCart, Eye, EyeOff, AlertCircle, CheckCircle2 } from "lucide-react";
-import { apiClient } from "../../api/client";
-
+import { useAppDispatch } from "../../store";
+import { loginSuccess } from "../../store/slices/authSlice";
+import { authService } from "../../services/authService";
+import { useToast } from "../../store/slices/toastSlice";
 // ── Types ─────────────────────────────────────────────────
 type ActiveTab = "login" | "register" | "forgot" | "reset";
 
@@ -78,19 +78,8 @@ function SubmitButton({ loading, label }: { loading: boolean; label: string }) {
       {loading ? (
         <span className="flex items-center justify-center gap-2">
           <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
-            />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8v8H4z"
-            />
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
           </svg>
           Please wait...
         </span>
@@ -137,36 +126,27 @@ function SuccessBanner({ message }: { message: string }) {
 function GoogleIcon() {
   return (
     <svg width="18" height="18" viewBox="0 0 48 48">
-      <path
-        fill="#EA4335"
-        d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"
-      />
-      <path
-        fill="#4285F4"
-        d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"
-      />
-      <path
-        fill="#FBBC05"
-        d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"
-      />
-      <path
-        fill="#34A853"
-        d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"
-      />
+      <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z" />
+      <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z" />
+      <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z" />
+      <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z" />
     </svg>
   );
 }
 
 // ╔══════════════════════════════════════════════════════════╗
-// ║                  LOGIN FORM                              ║
+// ║                    LOGIN FORM                            ║
 // ╚══════════════════════════════════════════════════════════╝
 function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,28 +154,39 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
     setLoading(true);
 
     try {
-      const res = await apiClient.post("/auth/login", { email, password });
+      // 1. Hit the API via service layer
+      const result = await authService.login({ email, password });
 
-      // Handles both { data: { access_token } } and flat { access_token }
-      const payload = res.data?.data ?? res.data;
-      const token = payload?.access_token;
+      // 2. Store token + hydrate Redux with user from login response.
+      //    This avoids a second round-trip to /users/me on login.
+      await dispatch(
+        loginSuccess({
+          access_token: result.access_token,
+          user: {
+            user_id: result.user.user_id,
+            email: result.user.email,
+            first_name: result.user.first_name,
+            last_name: result.user.last_name,
+            phone: null,        // login response doesn't include phone
+            roles: result.user.roles,
+          },
+        })
+      );
 
-      if (!token) {
-        setError(
-          "Login succeeded but no token returned. Check your API response shape."
-        );
-        return;
-      }
+      // 3. Navigate — Layout.tsx will pick up isAuthenticated from Redux
+      toast.success("Welcome back!");
+      navigate("/dashboard", { replace: true });
 
-      localStorage.setItem("access_token", token);
-      navigate("/dashboard");
     } catch (err: any) {
       const msg =
-        err?.response?.data?.message ??
-        err?.response?.data?.detail ??
-        err?.message ??
+        err?.response?.data?.error?.message ||   // ✅ backend format
+        err?.response?.data?.message ||
+        err?.response?.data?.detail ||
+        err?.message ||
         "Invalid email or password. Please try again.";
+
       setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -221,7 +212,6 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
           placeholder="aryan@example.com"
           autoComplete="email"
         />
-
         <Field
           label="Password"
           type={showPass ? "text" : "password"}
@@ -240,7 +230,6 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
             </button>
           }
         />
-
         <div className="flex justify-end -mt-1">
           <button
             type="button"
@@ -250,7 +239,6 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
             Forgot password?
           </button>
         </div>
-
         <SubmitButton loading={loading} label="Sign In" />
       </form>
 
@@ -260,13 +248,8 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
         <div className="flex-1 h-px bg-white/10" />
       </div>
 
-      {/*
-        Google OAuth — this redirects to your FastAPI backend.
-        You need to implement GET /api/v1/auth/google on the backend
-        using authlib or python-social-auth. Tell me when ready.
-      */}
       <a
-        href="http://localhost:8000/api/v1/auth/google"
+        href={`${import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api/v1"}/auth/google`}
         className="w-full flex items-center justify-center gap-3 py-3 rounded-lg text-white text-sm font-semibold transition-all duration-200 hover:bg-white/10 active:scale-[0.99]"
         style={{
           background: "rgba(255,255,255,0.05)",
@@ -292,7 +275,7 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
 }
 
 // ╔══════════════════════════════════════════════════════════╗
-// ║                 REGISTER FORM                            ║
+// ║                  REGISTER FORM                           ║
 // ╚══════════════════════════════════════════════════════════╝
 function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
   const [firstName, setFirstName] = useState("");
@@ -304,6 +287,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -312,17 +296,16 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
     setLoading(true);
 
     try {
-      const res = await apiClient.post("/auth/register", {
+      const result = await authService.register({
         first_name: firstName,
         last_name: lastName,
         email,
         password,
         ...(phone ? { phone } : {}),
       });
-
-      setSuccess(
-        res.data?.message ?? "Account created! Check your email to verify."
-      );
+      const msg = result.message ?? "Account created! Check your email.";
+      setSuccess(msg);
+      toast.success(msg);
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ??
@@ -330,6 +313,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
         err?.message ??
         "Registration failed. Please try again.";
       setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -341,9 +325,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
         <h1 className="text-white text-2xl font-bold mb-1 tracking-tight">
           Create account
         </h1>
-        <p className="text-white/40 text-sm">
-          Join the Smart Cart command center
-        </p>
+        <p className="text-white/40 text-sm">Join the Smart Cart command center</p>
       </div>
 
       {error && <ErrorBanner message={error} />}
@@ -352,31 +334,10 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
       {!success && (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="grid grid-cols-2 gap-3">
-            <Field
-              label="First Name"
-              value={firstName}
-              onChange={setFirstName}
-              placeholder="Aryan"
-              autoComplete="given-name"
-            />
-            <Field
-              label="Last Name"
-              value={lastName}
-              onChange={setLastName}
-              placeholder="K."
-              autoComplete="family-name"
-            />
+            <Field label="First Name" value={firstName} onChange={setFirstName} placeholder="Aryan" autoComplete="given-name" />
+            <Field label="Last Name" value={lastName} onChange={setLastName} placeholder="K." autoComplete="family-name" />
           </div>
-
-          <Field
-            label="Email Address"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            placeholder="aryan@example.com"
-            autoComplete="email"
-          />
-
+          <Field label="Email Address" type="email" value={email} onChange={setEmail} placeholder="aryan@example.com" autoComplete="email" />
           <Field
             label="Password"
             type={showPass ? "text" : "password"}
@@ -395,17 +356,7 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
               </button>
             }
           />
-
-          <Field
-            label="Phone (optional)"
-            type="tel"
-            value={phone}
-            onChange={setPhone}
-            placeholder="+91 9876543210"
-            autoComplete="tel"
-            required={false}
-          />
-
+          <Field label="Phone (optional)" type="tel" value={phone} onChange={setPhone} placeholder="+91 9876543210" autoComplete="tel" required={false} />
           <SubmitButton loading={loading} label="Create Account" />
         </form>
       )}
@@ -427,15 +378,12 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
 // ╔══════════════════════════════════════════════════════════╗
 // ║              FORGOT PASSWORD FORM                        ║
 // ╚══════════════════════════════════════════════════════════╝
-function ForgotPasswordForm({
-  onSwitchTab,
-}: {
-  onSwitchTab: (tab: ActiveTab) => void;
-}) {
+function ForgotPasswordForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -444,22 +392,17 @@ function ForgotPasswordForm({
     setLoading(true);
 
     try {
-      const res = await apiClient.post("/auth/forgot-password", { email });
-      setSuccess(
-        res.data?.message ??
-          "If an account exists, a reset link has been sent."
-      );
+      const result = await authService.forgotPassword(email);
+      const msg = result.message ?? "If an account exists, reset link has been sent.";
+      setSuccess(msg);
+      toast.success(msg);
     } catch (err: any) {
-      // 4xx → still show generic success (prevents email enumeration)
-      if (
-        err?.response?.status >= 400 &&
-        err?.response?.status < 500
-      ) {
-        setSuccess(
-          "If an account exists with that email, a reset link has been sent."
-        );
+      // 4xx → show generic success (prevents email enumeration)
+      if (err?.response?.status >= 400 && err?.response?.status < 500) {
+        setSuccess("If an account exists with that email, a reset link has been sent.");
       } else {
         setError(err?.message ?? "Something went wrong. Please try again.");
+        toast.error("Something went wrong. Please try again.");
       }
     } finally {
       setLoading(false);
@@ -472,9 +415,7 @@ function ForgotPasswordForm({
         <h1 className="text-white text-2xl font-bold mb-1 tracking-tight">
           Forgot password?
         </h1>
-        <p className="text-white/40 text-sm">
-          We'll send a reset link to your inbox
-        </p>
+        <p className="text-white/40 text-sm">We'll send a reset link to your inbox</p>
       </div>
 
       {error && <ErrorBanner message={error} />}
@@ -482,14 +423,7 @@ function ForgotPasswordForm({
 
       {!success && (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Field
-            label="Email Address"
-            type="email"
-            value={email}
-            onChange={setEmail}
-            placeholder="aryan@example.com"
-            autoComplete="email"
-          />
+          <Field label="Email Address" type="email" value={email} onChange={setEmail} placeholder="aryan@example.com" autoComplete="email" />
           <SubmitButton loading={loading} label="Send Reset Link" />
         </form>
       )}
@@ -511,11 +445,7 @@ function ForgotPasswordForm({
 // ╔══════════════════════════════════════════════════════════╗
 // ║              RESET PASSWORD FORM                         ║
 // ╚══════════════════════════════════════════════════════════╝
-function ResetPasswordForm({
-  onSwitchTab,
-}: {
-  onSwitchTab: (tab: ActiveTab) => void;
-}) {
+function ResetPasswordForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
   const [token, setToken] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -523,6 +453,7 @@ function ResetPasswordForm({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const toast = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -536,15 +467,13 @@ function ResetPasswordForm({
     setLoading(true);
 
     try {
-      const res = await apiClient.post("/auth/reset-password", {
+      const result = await authService.resetPassword({
         token,
         new_password: newPassword,
         confirm_password: confirmPassword,
       });
-      setSuccess(
-        res.data?.message ??
-          "Password reset successfully. You can now log in."
-      );
+      setSuccess(result.message ?? "Password reset successfully. You can now log in.");
+      toast.success("Password reset! You can now log in.");
     } catch (err: any) {
       const msg =
         err?.response?.data?.message ??
@@ -552,6 +481,7 @@ function ResetPasswordForm({
         err?.message ??
         "Reset failed. Token may be invalid or expired.";
       setError(msg);
+      toast.error(msg);
     } finally {
       setLoading(false);
     }
@@ -563,9 +493,7 @@ function ResetPasswordForm({
         <h1 className="text-white text-2xl font-bold mb-1 tracking-tight">
           Reset password
         </h1>
-        <p className="text-white/40 text-sm">
-          Paste the token from your email
-        </p>
+        <p className="text-white/40 text-sm">Paste the token from your email</p>
       </div>
 
       {error && <ErrorBanner message={error} />}
@@ -573,14 +501,7 @@ function ResetPasswordForm({
 
       {!success ? (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Field
-            label="Reset Token"
-            value={token}
-            onChange={setToken}
-            placeholder="Paste token from email"
-            autoComplete="off"
-          />
-
+          <Field label="Reset Token" value={token} onChange={setToken} placeholder="Paste token from email" autoComplete="off" />
           <Field
             label="New Password"
             type={showPass ? "text" : "password"}
@@ -599,7 +520,6 @@ function ResetPasswordForm({
               </button>
             }
           />
-
           <Field
             label="Confirm Password"
             type={showPass ? "text" : "password"}
@@ -608,7 +528,6 @@ function ResetPasswordForm({
             placeholder="Repeat new password"
             autoComplete="new-password"
           />
-
           <SubmitButton loading={loading} label="Reset Password" />
         </form>
       ) : (
@@ -655,11 +574,9 @@ export default function LoginPage() {
     <div
       className="min-h-screen flex flex-col items-center justify-center px-4 py-10"
       style={{
-        background:
-          "radial-gradient(ellipse at 60% 10%, #1a1f3a 0%, #0d0f1e 55%, #0a0c18 100%)",
+        background: "radial-gradient(ellipse at 60% 10%, #1a1f3a 0%, #0d0f1e 55%, #0a0c18 100%)",
       }}
     >
-      {/* Tab Nav */}
       <nav className="flex gap-3 mb-8 flex-wrap justify-center">
         {tabs.map((tab) => (
           <button
@@ -676,28 +593,22 @@ export default function LoginPage() {
         ))}
       </nav>
 
-      {/* Card */}
       <div
         className="w-full max-w-md rounded-2xl p-8 relative overflow-hidden"
         style={{
-          background:
-            "linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)",
+          background: "linear-gradient(145deg, rgba(255,255,255,0.07) 0%, rgba(255,255,255,0.03) 100%)",
           border: "1px solid rgba(255,255,255,0.1)",
           backdropFilter: "blur(20px)",
-          boxShadow:
-            "0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
+          boxShadow: "0 25px 50px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.08)",
         }}
       >
-        {/* Corner glow */}
         <div
           className="absolute top-0 right-0 w-48 h-48 rounded-full pointer-events-none"
           style={{
-            background:
-              "radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)",
+            background: "radial-gradient(circle, rgba(139,92,246,0.12) 0%, transparent 70%)",
           }}
         />
 
-        {/* Logo */}
         <div className="flex items-center justify-center gap-3 mb-6">
           <div
             className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
@@ -709,28 +620,15 @@ export default function LoginPage() {
             <ShoppingCart size={20} className="text-white" />
           </div>
           <div className="flex items-baseline gap-0.5">
-            <span className="text-white/50 text-sm font-mono tracking-tight">
-              shopping_
-            </span>
-            <span className="text-white text-xl font-bold tracking-tight">
-              Smart Cart
-            </span>
+            <span className="text-white/50 text-sm font-mono tracking-tight">shopping_</span>
+            <span className="text-white text-xl font-bold tracking-tight">Smart Cart</span>
           </div>
         </div>
 
-        {/* Active form — no remount flicker, just conditional render */}
-        {activeTab === "login" && (
-          <LoginForm onSwitchTab={setActiveTab} />
-        )}
-        {activeTab === "register" && (
-          <RegisterForm onSwitchTab={setActiveTab} />
-        )}
-        {activeTab === "forgot" && (
-          <ForgotPasswordForm onSwitchTab={setActiveTab} />
-        )}
-        {activeTab === "reset" && (
-          <ResetPasswordForm onSwitchTab={setActiveTab} />
-        )}
+        {activeTab === "login" && <LoginForm onSwitchTab={setActiveTab} />}
+        {activeTab === "register" && <RegisterForm onSwitchTab={setActiveTab} />}
+        {activeTab === "forgot" && <ForgotPasswordForm onSwitchTab={setActiveTab} />}
+        {activeTab === "reset" && <ResetPasswordForm onSwitchTab={setActiveTab} />}
       </div>
     </div>
   );

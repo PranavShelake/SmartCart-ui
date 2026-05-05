@@ -1,48 +1,21 @@
-/**
- * TopBar.tsx
- * ─────────────────────────────────────────────────────────────
- * Fixed top navigation bar.
- *
- * Responsibilities:
- *   - Global search input (wired to state later)
- *   - Notification bell with badge (wire to Redux notification slice later)
- *   - Quick action icons (settings, help)
- *   - User profile avatar + role display
- *
- * Props are intentionally minimal now — notifications count and user
- * info will come from Redux selectors once those slices are built.
- * ─────────────────────────────────────────────────────────────
- */
-
 import { useState } from "react";
+import { useAppSelector } from "../../store";
+import {
+  selectDisplayName,
+  selectPrimaryRole,
+  selectUser,
+} from "../../store/slices/authSlice";
 
-// ─── Types ────────────────────────────────────────────────────
-
-interface TopBarProps {
-  /** Number of unread notifications — pass 0 to hide dot */
-  notificationCount?: number;
-  user?: {
-    name: string;
-    role: string;
-    avatarUrl?: string;
-  };
-}
-
-// ─── Component ───────────────────────────────────────────────
-
-export default function TopBar({
-  notificationCount = 3,
-  user = {
-    name: "Aryan K.",
-    role: "Administrator",
-    avatarUrl: undefined,
-  },
-}: TopBarProps) {
+export default function TopBar() {
   const [searchValue, setSearchValue] = useState("");
   const [searchFocused, setSearchFocused] = useState(false);
 
-  /** Initials fallback when no avatar image */
-  const initials = user.name
+  // ── Real data from Redux (no more hardcoded "Aryan K.") ──
+  const displayName = useAppSelector(selectDisplayName);
+  const role = useAppSelector(selectPrimaryRole);
+  const user = useAppSelector(selectUser);
+
+  const initials = displayName
     .split(" ")
     .map((n) => n[0])
     .join("")
@@ -89,7 +62,6 @@ export default function TopBar({
               <span className="material-symbols-outlined text-[18px]">close</span>
             </button>
           )}
-          {/* Keyboard shortcut hint */}
           {!searchFocused && !searchValue && (
             <kbd className="hidden md:flex items-center gap-1 text-[10px] text-slate-600 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 font-mono shrink-0">
               ⌘K
@@ -100,38 +72,29 @@ export default function TopBar({
 
       {/* ── Right actions ────────────────────────────────────── */}
       <div className="flex items-center gap-1 ml-6">
-
-        {/* Notifications */}
         <button className="relative p-2.5 text-slate-400 hover:text-violet-300 hover:bg-white/5 rounded-xl transition-all duration-200">
-          <span className="material-symbols-outlined text-[22px]">
-            notifications
-          </span>
-          {notificationCount > 0 && (
-            <span className="absolute top-2 right-2 w-2 h-2 bg-violet-500 rounded-full border-2 border-surface animate-pulse-glow" />
-          )}
+          <span className="material-symbols-outlined text-[22px]">notifications</span>
+          {/* Wire to notifications Redux slice later */}
+          <span className="absolute top-2 right-2 w-2 h-2 bg-violet-500 rounded-full border-2 border-surface animate-pulse-glow" />
         </button>
 
-        {/* Settings quick-link */}
         <button className="p-2.5 text-slate-400 hover:text-violet-300 hover:bg-white/5 rounded-xl transition-all duration-200">
           <span className="material-symbols-outlined text-[22px]">settings</span>
         </button>
 
-        {/* Help */}
         <button className="p-2.5 text-slate-400 hover:text-violet-300 hover:bg-white/5 rounded-xl transition-all duration-200">
           <span className="material-symbols-outlined text-[22px]">help</span>
         </button>
 
-        {/* Divider */}
         <div className="w-px h-7 bg-white/10 mx-2" />
 
-        {/* User profile */}
+        {/* User profile — now reads from Redux */}
         <button className="flex items-center gap-3 pl-1 pr-3 py-1.5 rounded-xl hover:bg-white/5 transition-all duration-200 group">
-          {/* Avatar */}
           <div className="relative shrink-0">
-            {user.avatarUrl ? (
+            {user?.avatar_url ? (
               <img
-                src={user.avatarUrl}
-                alt={user.name}
+                src={user.avatar_url}
+                alt={displayName}
                 className="w-9 h-9 rounded-full border-2 border-violet-500/40 object-cover"
               />
             ) : (
@@ -141,21 +104,18 @@ export default function TopBar({
                 </span>
               </div>
             )}
-            {/* Online indicator */}
             <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-teal-400 rounded-full border-2 border-surface" />
           </div>
 
-          {/* Name + role */}
           <div className="text-left hidden sm:block">
             <p className="text-sm font-bold text-white font-display leading-tight">
-              {user.name}
+              {displayName || "—"}
             </p>
             <p className="text-[10px] text-violet-400 font-display uppercase tracking-wider leading-tight">
-              {user.role}
+              {role}
             </p>
           </div>
 
-          {/* Chevron */}
           <span className="material-symbols-outlined text-[16px] text-slate-600 group-hover:text-slate-400 transition-colors">
             expand_more
           </span>

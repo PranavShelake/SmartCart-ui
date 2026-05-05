@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { salesChartData } from "../../data/mockData";
+import { salesChartData } from "./mockData";
 
 export default function SalesChart() {
   const [tab, setTab] = useState<"weekly"|"monthly">("monthly");
