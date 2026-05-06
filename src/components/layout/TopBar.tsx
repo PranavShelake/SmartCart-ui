@@ -1,50 +1,48 @@
-import { useState } from "react";
-import { useAppSelector } from "../../store";
+// src/components/layout/TopBar.tsx
+import { useState } from 'react'
+import { Search, Bell, Settings, HelpCircle, ChevronDown } from 'lucide-react'
+import { useAppSelector } from '../../store'
 import {
   selectDisplayName,
-  selectPrimaryRole,
+  selectRoleLabel,
   selectUser,
-} from "../../store/slices/authSlice";
+} from '../../store/slices/authSlice'
 
 export default function TopBar() {
-  const [searchValue, setSearchValue] = useState("");
-  const [searchFocused, setSearchFocused] = useState(false);
+  const [searchValue,   setSearchValue]   = useState('')
+  const [searchFocused, setSearchFocused] = useState(false)
 
-  // ── Real data from Redux (no more hardcoded "Aryan K.") ──
-  const displayName = useAppSelector(selectDisplayName);
-  const role = useAppSelector(selectPrimaryRole);
-  const user = useAppSelector(selectUser);
+  const displayName = useAppSelector(selectDisplayName)
+  const roleLabel   = useAppSelector(selectRoleLabel)     // ← 'Administrator' / 'Seller' / 'Customer'
+  const user        = useAppSelector(selectUser)
 
   const initials = displayName
-    .split(" ")
+    .split(' ')
     .map((n) => n[0])
-    .join("")
+    .join('')
     .slice(0, 2)
-    .toUpperCase();
+    .toUpperCase()
 
   return (
     <header
-      className="fixed top-0 right-0 z-40 flex items-center justify-between px-8 h-[72px] glass-nav border-b border-white/[0.08]"
-      style={{ width: "calc(100% - 280px)" }}
+      className="fixed top-0 right-0 z-40 flex items-center justify-between px-8
+                 h-topbar glass-nav border-b border-border-base"
+      style={{ width: 'calc(100% - 280px)' }}
     >
       {/* ── Search ──────────────────────────────────────────── */}
       <div className="flex-1 max-w-[520px]">
-        <div
-          className={[
-            "flex items-center gap-3 px-4 py-2.5 rounded-full border transition-all duration-200",
-            searchFocused
-              ? "bg-white/8 border-violet-500/60 shadow-[0_0_0_3px_rgba(139,92,246,0.15)]"
-              : "bg-white/5 border-white/10 hover:border-white/20",
-          ].join(" ")}
-        >
-          <span
-            className={[
-              "material-symbols-outlined text-[20px] shrink-0 transition-colors duration-200",
-              searchFocused ? "text-violet-400" : "text-slate-500",
-            ].join(" ")}
-          >
-            search
-          </span>
+        <div className={[
+          'flex items-center gap-3 px-4 py-2.5 rounded-full border transition-all duration-200',
+          searchFocused
+            ? 'bg-white/[0.08] border-violet-500/60 shadow-[0_0_0_3px_rgba(139,92,246,0.15)]'
+            : 'bg-white/5 border-border-base hover:border-border-strong',
+        ].join(' ')}>
+          <Search
+            size={18}
+            className={`shrink-0 transition-colors duration-200 ${
+              searchFocused ? 'text-violet-400' : 'text-slate-500'
+            }`}
+          />
           <input
             type="text"
             value={searchValue}
@@ -52,44 +50,43 @@ export default function TopBar() {
             onFocus={() => setSearchFocused(true)}
             onBlur={() => setSearchFocused(false)}
             placeholder="Search orders, products, or analytics..."
-            className="flex-1 bg-transparent text-sm text-on-surface placeholder:text-slate-600 outline-none font-body"
+            className="flex-1 bg-transparent text-sm text-text-primary
+                       placeholder:text-slate-600 outline-none font-body"
           />
-          {searchValue && (
-            <button
-              onClick={() => setSearchValue("")}
-              className="text-slate-500 hover:text-slate-300 transition-colors shrink-0"
-            >
-              <span className="material-symbols-outlined text-[18px]">close</span>
-            </button>
-          )}
           {!searchFocused && !searchValue && (
-            <kbd className="hidden md:flex items-center gap-1 text-[10px] text-slate-600 bg-white/5 border border-white/10 rounded px-1.5 py-0.5 font-mono shrink-0">
+            <kbd className="hidden md:flex items-center gap-1 text-[10px] text-slate-600
+                            bg-white/5 border border-border-base rounded px-1.5 py-0.5
+                            font-mono shrink-0">
               ⌘K
             </kbd>
           )}
         </div>
       </div>
 
-      {/* ── Right actions ────────────────────────────────────── */}
+      {/* ── Right actions ──────────────────────────────────── */}
       <div className="flex items-center gap-1 ml-6">
-        <button className="relative p-2.5 text-slate-400 hover:text-violet-300 hover:bg-white/5 rounded-xl transition-all duration-200">
-          <span className="material-symbols-outlined text-[22px]">notifications</span>
-          {/* Wire to notifications Redux slice later */}
-          <span className="absolute top-2 right-2 w-2 h-2 bg-violet-500 rounded-full border-2 border-surface animate-pulse-glow" />
+        <button className="relative p-2.5 text-slate-400 hover:text-violet-300
+                           hover:bg-surface-hover rounded-xl transition-all duration-200">
+          <Bell size={20} />
+          <span className="absolute top-2 right-2 w-2 h-2 bg-violet-500 rounded-full
+                           border-2 border-surface-base animate-pulse" />
         </button>
 
-        <button className="p-2.5 text-slate-400 hover:text-violet-300 hover:bg-white/5 rounded-xl transition-all duration-200">
-          <span className="material-symbols-outlined text-[22px]">settings</span>
+        <button className="p-2.5 text-slate-400 hover:text-violet-300
+                           hover:bg-surface-hover rounded-xl transition-all duration-200">
+          <Settings size={20} />
         </button>
 
-        <button className="p-2.5 text-slate-400 hover:text-violet-300 hover:bg-white/5 rounded-xl transition-all duration-200">
-          <span className="material-symbols-outlined text-[22px]">help</span>
+        <button className="p-2.5 text-slate-400 hover:text-violet-300
+                           hover:bg-surface-hover rounded-xl transition-all duration-200">
+          <HelpCircle size={20} />
         </button>
 
-        <div className="w-px h-7 bg-white/10 mx-2" />
+        <div className="w-px h-7 bg-border-base mx-2" />
 
-        {/* User profile — now reads from Redux */}
-        <button className="flex items-center gap-3 pl-1 pr-3 py-1.5 rounded-xl hover:bg-white/5 transition-all duration-200 group">
+        {/* User profile */}
+        <button className="flex items-center gap-3 pl-1 pr-3 py-1.5 rounded-xl
+                           hover:bg-surface-hover transition-all duration-200 group">
           <div className="relative shrink-0">
             {user?.avatar_url ? (
               <img
@@ -98,29 +95,34 @@ export default function TopBar() {
                 className="w-9 h-9 rounded-full border-2 border-violet-500/40 object-cover"
               />
             ) : (
-              <div className="w-9 h-9 rounded-full border-2 border-violet-500/40 bg-gradient-to-br from-violet-600/60 to-blue-500/60 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-full border-2 border-violet-500/40
+                              bg-gradient-to-br from-violet-600/60 to-blue-500/60
+                              flex items-center justify-center">
                 <span className="text-xs font-bold text-white font-display">
                   {initials}
                 </span>
               </div>
             )}
-            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-teal-400 rounded-full border-2 border-surface" />
+            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-teal-400
+                             rounded-full border-2 border-surface-base" />
           </div>
 
           <div className="text-left hidden sm:block">
             <p className="text-sm font-bold text-white font-display leading-tight">
-              {displayName || "—"}
+              {displayName || '—'}
             </p>
-            <p className="text-[10px] text-violet-400 font-display uppercase tracking-wider leading-tight">
-              {role}
+            <p className="text-[10px] text-violet-400 font-display uppercase
+                          tracking-wider leading-tight">
+              {roleLabel}
             </p>
           </div>
 
-          <span className="material-symbols-outlined text-[16px] text-slate-600 group-hover:text-slate-400 transition-colors">
-            expand_more
-          </span>
+          <ChevronDown
+            size={14}
+            className="text-slate-600 group-hover:text-slate-400 transition-colors"
+          />
         </button>
       </div>
     </header>
-  );
+  )
 }

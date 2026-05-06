@@ -1,105 +1,73 @@
+// src/services/authService.ts
 import { apiClient } from "../api/client";
+import type { UserProfile } from "../types"; 
 
-// ─── Types ────────────────────────────────────────────────────
-
+// ── Request payloads ──────────────────────────────────────────
 export interface LoginPayload {
-  email: string;
+  email:    string;
   password: string;
 }
 
 export interface RegisterPayload {
+  email:      string;
+  password:   string;
   first_name: string;
-  last_name: string;
-  email: string;
-  password: string;
-  phone?: string;
+  last_name:  string;
+  phone?:     string;
 }
 
+export interface ResetPasswordPayload {
+  token:            string;
+  new_password:     string;
+  confirm_password: string;
+}
+
+// ── Response shapes (mirrors FastAPI exactly) ─────────────────
 export interface LoginResponse {
   access_token: string;
-  token_type: string;
-  expires_in: number;
-  user: {
-    user_id: string;
-    email: string;
-    first_name: string;
-    last_name: string;
-    roles: string[];
-  };
+  token_type:   string;
+  expires_in:   number;
+  user:         UserProfile;   
 }
 
-// ─── Service ──────────────────────────────────────────────────
+export interface RegisterResponse {
+  user_id: number;
+  message: string;
+}
 
+export interface MessageResponse {
+  message: string;
+}
+
+// ── Service ───────────────────────────────────────────────────
 export const authService = {
 
-  /**
-   * POST /auth/login
-   * Returns access token (body) + sets refresh token (HTTP-only cookie)
-   */
   async login(payload: LoginPayload): Promise<LoginResponse> {
-  const { data } = await apiClient.post("/auth/login", payload);
-  const raw = data.data;
-
-  // Backend sends "id" but frontend expects "user_id" everywhere
-  return {
-    ...raw,
-    user: {
-      ...raw.user,
-      user_id: String(raw.user.id),
-    },
-  };
-},
-
-  /**
-   * POST /auth/register
-   */
-  async register(payload: RegisterPayload): Promise<{ user_id: string; message: string }> {
-    const { data } = await apiClient.post("/auth/register", payload);
-    return data.data;
+    const { data } = await apiClient.post("/auth/login", payload);
+    return data.data as LoginResponse;
   },
 
-  /**
-   * POST /auth/logout
-   * Revokes current device refresh token
-   */
+  async register(payload: RegisterPayload): Promise<RegisterResponse> {
+    const { data } = await apiClient.post("/auth/register", payload);
+    return data.data as RegisterResponse;
+  },
+
   async logout(): Promise<void> {
     await apiClient.post("/auth/logout");
   },
 
-  /**
-   * POST /auth/logout-all
-   * Revokes ALL refresh tokens for this user
-   */
-  async logoutAll(): Promise<void> {
-    await apiClient.post("/auth/logout-all");
-  },
-
-  /**
-   * POST /auth/forgot-password
-   * Always returns same message (backend prevents email enumeration)
-   */
-  async forgotPassword(email: string): Promise<{ message: string }> {
+  async forgotPassword(email: string): Promise<MessageResponse> {
     const { data } = await apiClient.post("/auth/forgot-password", { email });
-    return { message: data.message };
+    return data as MessageResponse;
   },
 
-  /**
-   * POST /auth/reset-password
-   */
-  async resetPassword(payload: {
-    token: string;
-    new_password: string;
-    confirm_password: string;
-  }): Promise<{ message: string }> {
+  async resetPassword(payload: ResetPasswordPayload): Promise<MessageResponse> {
     const { data } = await apiClient.post("/auth/reset-password", payload);
-    return { message: data.message };
+    return data as MessageResponse;
   },
 
-  /**
-   * POST /auth/verify-email
-   */
-  async verifyEmail(token: string): Promise<{ message: string }> {
-    const { data } = await apiClient.post("/auth/verify-email", { token });
-    return { message: data.message };
+  async refreshToken(): Promise<{ access_token: string }> {
+    const { data } = await apiClient.post("/auth/refresh");
+    return data.data;
   },
 };

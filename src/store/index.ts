@@ -4,11 +4,15 @@ import { useDispatch, useSelector } from "react-redux";
 import type { TypedUseSelectorHook } from "react-redux";
 import authReducer from "./slices/authSlice";
 import toastReducer from "./slices/toastSlice";
+import productsReducer  from './slices/productsSlice'
+import categoriesReducer from './slices/categoriesSlice'
 
 export const store = configureStore({
   reducer: {
     auth: authReducer,
     toast: toastReducer,
+    products:   productsReducer,
+    categories: categoriesReducer,
   },
 });
 

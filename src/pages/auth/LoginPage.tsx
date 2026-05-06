@@ -148,57 +148,59 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
   const [error, setError] = useState<string | null>(null);
   const toast = useToast();
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setLoading(true);
-
-    try {
-      // 1. Hit the API via service layer
-      const result = await authService.login({ email, password });
-
-      // 2. Store token + hydrate Redux with user from login response.
-      //    This avoids a second round-trip to /users/me on login.
-      await dispatch(
-        loginSuccess({
-          access_token: result.access_token,
-          user: {
-            user_id: result.user.user_id,
-            email: result.user.email,
-            first_name: result.user.first_name,
-            last_name: result.user.last_name,
-            phone: null,        // login response doesn't include phone
-            roles: result.user.roles,
-          },
-        })
-      );
-
-      // 3. Navigate — Layout.tsx will pick up isAuthenticated from Redux
-      toast.success("Welcome back!");
-      navigate("/dashboard", { replace: true });
-
-    } catch (err: any) {
-      const msg =
-        err?.response?.data?.error?.message ||   // ✅ backend format
-        err?.response?.data?.message ||
-        err?.response?.data?.detail ||
-        err?.message ||
-        "Invalid email or password. Please try again.";
-
-      setError(msg);
-      toast.error(msg);
-    } finally {
-      setLoading(false);
-    }
-  };
+  
+const handleSubmit = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setError(null);
+  if (!email.trim() || !password.trim()) {
+    const msg = "Email and password are required.";
+    setError(msg);
+    toast.error(msg);
+    return;
+  }
+  setLoading(true);
+ 
+  try {
+    const result = await authService.login({ email, password });
+ 
+    await dispatch(
+      loginSuccess({
+        access_token: result.access_token,
+        user: {
+          id:         result.user.id,          
+          email:      result.user.email,
+          first_name: result.user.first_name,
+          last_name:  result.user.last_name,
+          phone:      result.user.phone ?? null,
+          roles:      result.user.roles,        
+          is_active:  result.user.is_active ?? true,
+        },
+      })
+    );
+ 
+    toast.success("Welcome back!");
+    navigate("/admin/dashboard", { replace: true }); // ← updated path
+ 
+  } catch (err: any) {
+    const msg =
+      err?.response?.data?.error?.message ||
+      err?.response?.data?.message ||
+      err?.message ||
+      "Invalid email or password. Please try again.";
+    setError(msg);
+    toast.error(msg);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <>
       <div className="text-center mb-6">
         <h1 className="text-white text-2xl font-bold mb-1 tracking-tight">
-          Welcome back
+          Welcome back 👋
         </h1>
-        <p className="text-white/40 text-sm">Sign in to your command center</p>
+        <p className="text-white/40 text-sm">Sign in to your account</p>
       </div>
 
       {error && <ErrorBanner message={error} />}
@@ -209,7 +211,7 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
           type="email"
           value={email}
           onChange={setEmail}
-          placeholder="aryan@example.com"
+          placeholder="you@example.com"
           autoComplete="email"
         />
         <Field
@@ -217,7 +219,7 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
           type={showPass ? "text" : "password"}
           value={password}
           onChange={setPassword}
-          placeholder="••••••••"
+          placeholder="Enter your password"
           autoComplete="current-password"
           rightSlot={
             <button
@@ -257,7 +259,7 @@ function LoginForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }) {
         }}
       >
         <GoogleIcon />
-        Continue with Google
+        Sign in with Google
       </a>
 
       <p className="text-center text-white/35 text-sm mt-5">
@@ -293,6 +295,20 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    if (!firstName.trim()) return setError("First name is required");
+    if (!lastName.trim()) return setError("Last name is required");
+    if (!email.trim()) return setError("Email is required");
+    if (!password.trim()) return setError("Password is required");
+
+    if (password.length < 8) {
+      return setError("Password must be at least 8 characters");
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return setError("Enter a valid email address");
+    }
+
     setLoading(true);
 
     try {
@@ -334,17 +350,18 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
       {!success && (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           <div className="grid grid-cols-2 gap-3">
-            <Field label="First Name" value={firstName} onChange={setFirstName} placeholder="Aryan" autoComplete="given-name" />
-            <Field label="Last Name" value={lastName} onChange={setLastName} placeholder="K." autoComplete="family-name" />
+            <Field label="First Name" value={firstName} onChange={setFirstName} placeholder="First name" autoComplete="given-name" />
+            <Field label="Last Name" value={lastName} onChange={setLastName} placeholder="Last name" autoComplete="family-name" />
           </div>
-          <Field label="Email Address" type="email" value={email} onChange={setEmail} placeholder="aryan@example.com" autoComplete="email" />
+          <Field label="Email Address" type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
           <Field
             label="Password"
             type={showPass ? "text" : "password"}
             value={password}
             onChange={setPassword}
-            placeholder="Min. 8 characters"
+            placeholder="Minimum 8 characters"
             autoComplete="new-password"
+            required
             rightSlot={
               <button
                 type="button"
@@ -356,8 +373,8 @@ function RegisterForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => void }
               </button>
             }
           />
-          <Field label="Phone (optional)" type="tel" value={phone} onChange={setPhone} placeholder="+91 9876543210" autoComplete="tel" required={false} />
-          <SubmitButton loading={loading} label="Create Account" />
+          <Field label="Phone (optional)" type="tel" value={phone} onChange={setPhone} placeholder="+91 98765 43210" autoComplete="tel" required={false} />
+          <SubmitButton loading={loading} label="Create your account" />
         </form>
       )}
 
@@ -389,6 +406,14 @@ function ForgotPasswordForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => 
     e.preventDefault();
     setError(null);
     setSuccess(null);
+    if (!email.trim()) {
+      return setError("Email is required");
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return setError("Enter a valid email address");
+    }
     setLoading(true);
 
     try {
@@ -423,7 +448,7 @@ function ForgotPasswordForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => 
 
       {!success && (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Field label="Email Address" type="email" value={email} onChange={setEmail} placeholder="aryan@example.com" autoComplete="email" />
+          <Field label="Email Address" type="email" value={email} onChange={setEmail} placeholder="you@example.com" autoComplete="email" />
           <SubmitButton loading={loading} label="Send Reset Link" />
         </form>
       )}
@@ -458,6 +483,14 @@ function ResetPasswordForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => v
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!token.trim()) return setError("Reset token is required");
+
+    if (!newPassword.trim()) return setError("New password is required");
+    if (!confirmPassword.trim()) return setError("Confirm password is required");
+
+    if (newPassword.length < 8) {
+      return setError("Password must be at least 8 characters");
+    }
 
     if (newPassword !== confirmPassword) {
       setError("Passwords do not match.");
@@ -501,7 +534,7 @@ function ResetPasswordForm({ onSwitchTab }: { onSwitchTab: (tab: ActiveTab) => v
 
       {!success ? (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
-          <Field label="Reset Token" value={token} onChange={setToken} placeholder="Paste token from email" autoComplete="off" />
+          <Field label="Reset Token" value={token} onChange={setToken} placeholder="Enter reset token" autoComplete="off" />
           <Field
             label="New Password"
             type={showPass ? "text" : "password"}
@@ -620,7 +653,7 @@ export default function LoginPage() {
             <ShoppingCart size={20} className="text-white" />
           </div>
           <div className="flex items-baseline gap-0.5">
-            <span className="text-white/50 text-sm font-mono tracking-tight">shopping_</span>
+            {/* <span className="text-white/50 text-sm font-mono tracking-tight">shopping_</span> */}
             <span className="text-white text-xl font-bold tracking-tight">Smart Cart</span>
           </div>
         </div>
