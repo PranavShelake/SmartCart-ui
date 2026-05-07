@@ -42,14 +42,14 @@ export interface UserProfile {
 
 // ── Categories ────────────────────────────────────────────────
 export interface Category {
-  id:                 number
-  name:               string
-  slug:               string
-  description:        string | null
-  parent_category_id: number | null
-  image_url:          string | null
-  display_order:      number
-  is_active:          boolean
+  id:                  number
+  name:                string
+  slug:                string
+  description:         string | null
+  parent_category_id?: number | null
+  image_url:           string | null
+  display_order:       number
+  is_active?:          boolean
 }
 
 export interface CategoryTree extends Category {
@@ -180,27 +180,94 @@ export interface ImageCreatePayload {
 }
 
 // ── Orders ────────────────────────────────────────────────────
-// (Placeholder — will be expanded in Phase 4)
+export type OrderStatus =
+  | 'PENDING' | 'CONFIRMED' | 'PROCESSING'
+  | 'SHIPPED' | 'OUT_FOR_DELIVERY' | 'DELIVERED'
+  | 'CANCELLED' | 'RETURN_REQUESTED' | 'RETURN_APPROVED'
+  | 'RETURN_REJECTED' | 'REFUNDED'
+
+export type PaymentStatus =
+  | 'PENDING' | 'AUTHORIZED' | 'PAID'
+  | 'FAILED' | 'REFUND_PENDING' | 'REFUNDED' | 'PARTIALLY_REFUNDED'
+
+export interface OrderItem {
+  id:                 number
+  product_id:         number
+  product_variant_id: number | null
+  product_name:       string
+  product_sku:        string | null
+  variant_details:    string | null
+  quantity:           number
+  price_per_unit:     number
+  total_price:        number
+}
+
 export interface Order {
   id:              number
   order_number:    string
-  user_id:         number
-  total_price:     number
+  status:          OrderStatus
   order_state_id:  number
-  payment_status_id: number
+  payment_status:  PaymentStatus
+  payment_method:  string
+  subtotal:        number
+  discount:        number
+  tax:             number
+  shipping_charge: number
+  total_price:     number
+  tracking_number: string | null
+  order_notes:     string | null
+  items:           OrderItem[]
   created_at:      string
+  delivery_date:   string | null
+}
+export interface OrderListItem {
+  id:             number
+  order_number:   string
+  status:         OrderStatus
+  payment_status: PaymentStatus
+  total_price:    number
+  item_count:     number
+  created_at:     string
+}
+
+export interface CouponValidation {
+  valid:           boolean
+  discount_type:   'percentage' | 'fixed' | null
+  discount_value:  number | null
+  discount_amount: number | null
+  message:         string
 }
 
 // ── Cart ──────────────────────────────────────────────────────
-// (Placeholder — will be expanded in Phase 3)
 export interface CartItem {
   id:                 number
   product_id:         number
   product_variant_id: number | null
-  quantity:           number
+  product_name:       string
+  variant_label:      string | null
+  primary_image:      string | null
   price_snapshot:     number
+  current_price:      number
+  price_changed:      boolean
+  quantity:           number
+  subtotal:           number
 }
 
+export interface Cart {
+  cart_id:              number | null
+  items:                CartItem[]
+  item_count:           number
+  total_quantity:       number
+  subtotal:             number
+  price_change_warning: boolean
+}
+
+export interface CartState {
+  cart:          Cart | null
+  isLoading:     boolean
+  error:         string | null
+  isCheckingOut: boolean
+}
 // ── Addresses ─────────────────────────────────────────────────
 export interface Address {
   id:            number
@@ -216,10 +283,29 @@ export interface Address {
   is_default:    boolean
 }
 
+// ── Payment Methods ───────────────────────────────────────────
+export interface PaymentMethod {
+  id:   number
+  name: string
+}
+
 // ── Redux State shapes ────────────────────────────────────────
 export interface AsyncSliceState {
   isLoading: boolean
   error:     string | null
+}
+export interface OrdersState {
+  items:           OrderListItem[]
+  total:           number
+  totalPages:      number
+  selectedOrder:   Order | null
+  isLoading:       boolean
+  isLoadingDetail: boolean
+  error:           string | null
+  filters: {
+    page:   number
+    status: string | null
+  }
 }
 
 export interface ProductsState extends AsyncSliceState {
@@ -235,3 +321,4 @@ export interface CategoriesState extends AsyncSliceState {
   tree:             CategoryTree[]
   selectedCategory: Category | null
 }
+

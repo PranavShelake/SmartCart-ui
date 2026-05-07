@@ -2,7 +2,6 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit'
 import { ordersApi } from '../../api/ordersApi'
 import type { OrdersState } from '../../types'
 import type { PlaceOrderPayload, UpdateOrderStatePayload } from '../../api/ordersApi'
-import type { RootState } from '../index'
 
 const initialState: OrdersState = {
   items:           [],
@@ -127,35 +126,36 @@ const ordersSlice = createSlice({
     },
   },
   extraReducers: (builder) => {
-    // fetch mine
+    // fetchMyOrders + fetchAllOrders share same shape
+    const fetchFulfilled = (
+      state: OrdersState,
+      action: ReturnType<
+        typeof fetchMyOrders.fulfilled | typeof fetchAllOrders.fulfilled
+      >
+    ) => {
+      state.isLoading  = false
+      state.items      = action.payload.data
+      state.total      = action.payload.meta?.total      ?? 0
+      state.totalPages = action.payload.meta?.total_pages ?? 1
+    }
+
     builder
-      .addCase(fetchMyOrders.pending,   (state) => { state.isLoading = true;  state.error = null })
-      .addCase(fetchMyOrders.fulfilled, (state, action) => {
-        state.isLoading  = false
-        state.items      = action.payload.data
-        state.total      = action.payload.meta?.total      ?? 0
-        state.totalPages = action.payload.meta?.total_pages ?? 1
-      })
+      .addCase(fetchMyOrders.pending,   (state) => { state.isLoading = true; state.error = null })
+      .addCase(fetchMyOrders.fulfilled, fetchFulfilled)
       .addCase(fetchMyOrders.rejected,  (state, action) => {
         state.isLoading = false
         state.error     = action.payload as string
       })
 
-    // fetch all (admin)
     builder
-      .addCase(fetchAllOrders.pending,   (state) => { state.isLoading = true;  state.error = null })
-      .addCase(fetchAllOrders.fulfilled, (state, action) => {
-        state.isLoading  = false
-        state.items      = action.payload.data
-        state.total      = action.payload.meta?.total      ?? 0
-        state.totalPages = action.payload.meta?.total_pages ?? 1
-      })
+      .addCase(fetchAllOrders.pending,   (state) => { state.isLoading = true; state.error = null })
+      .addCase(fetchAllOrders.fulfilled, fetchFulfilled)
       .addCase(fetchAllOrders.rejected,  (state, action) => {
         state.isLoading = false
         state.error     = action.payload as string
       })
 
-    // fetch by id
+    // fetchOrderById
     builder
       .addCase(fetchOrderById.pending,   (state) => { state.isLoadingDetail = true })
       .addCase(fetchOrderById.fulfilled, (state, action) => {
@@ -167,40 +167,43 @@ const ordersSlice = createSlice({
         state.error           = action.payload as string
       })
 
-    // place order
+    // placeOrder
     builder
       .addCase(placeOrder.pending,   (state) => { state.isLoading = true })
-      .addCase(placeOrder.fulfilled, (state, action) => {
-        state.isLoading     = false
-        state.selectedOrder = action.payload
-      })
+      .addCase(placeOrder.fulfilled, (state) => { state.isLoading = false })
       .addCase(placeOrder.rejected,  (state, action) => {
         state.isLoading = false
         state.error     = action.payload as string
       })
 
-    // cancel
+    // cancelOrder
     builder
       .addCase(cancelOrder.pending,   (state) => { state.isLoading = true })
       .addCase(cancelOrder.fulfilled, (state, action) => {
         state.isLoading = false
-        // Update the item in the list if present
-        const idx = state.items.findIndex(i => i.id === action.payload.id)
+        // Update the item in the list if it exists
+        const idx = state.items.findIndex(o => o.id === action.payload.id)
         if (idx !== -1) state.items[idx].status = action.payload.status
+        // Update selected order if open
+        if (state.selectedOrder?.id === action.payload.id) {
+          state.selectedOrder = action.payload
+        }
       })
       .addCase(cancelOrder.rejected,  (state, action) => {
         state.isLoading = false
         state.error     = action.payload as string
       })
 
-    // update state (admin)
+    // updateOrderState
     builder
       .addCase(updateOrderState.pending,   (state) => { state.isLoading = true })
       .addCase(updateOrderState.fulfilled, (state, action) => {
-        state.isLoading     = false
-        state.selectedOrder = action.payload
-        const idx = state.items.findIndex(i => i.id === action.payload.id)
+        state.isLoading = false
+        const idx = state.items.findIndex(o => o.id === action.payload.id)
         if (idx !== -1) state.items[idx].status = action.payload.status
+        if (state.selectedOrder?.id === action.payload.id) {
+          state.selectedOrder = action.payload
+        }
       })
       .addCase(updateOrderState.rejected,  (state, action) => {
         state.isLoading = false
@@ -217,8 +220,11 @@ export const {
 export default ordersSlice.reducer
 
 // ── Selectors ─────────────────────────────────────────────────
+import type { RootState } from '../index'
+
 export const selectOrders          = (s: RootState) => s.orders.items
-export const selectOrdersMeta      = (s: RootState) => ({ total: s.orders.total, totalPages: s.orders.totalPages })
+export const selectOrdersTotal     = (s: RootState) => s.orders.total
+export const selectOrdersTotalPages = (s: RootState) => s.orders.totalPages
 export const selectOrdersLoading   = (s: RootState) => s.orders.isLoading
 export const selectOrdersError     = (s: RootState) => s.orders.error
 export const selectSelectedOrder   = (s: RootState) => s.orders.selectedOrder

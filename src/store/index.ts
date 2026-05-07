@@ -6,6 +6,8 @@ import authReducer from "./slices/authSlice";
 import toastReducer from "./slices/toastSlice";
 import productsReducer  from './slices/productsSlice'
 import categoriesReducer from './slices/categoriesSlice'
+import cartReducer   from './slices/cartSlice'   
+import ordersReducer from './slices/ordersSlice'
 
 export const store = configureStore({
   reducer: {
@@ -13,6 +15,8 @@ export const store = configureStore({
     toast: toastReducer,
     products:   productsReducer,
     categories: categoriesReducer,
+    cart:       cartReducer,
+    orders:     ordersReducer, 
   },
 });
 

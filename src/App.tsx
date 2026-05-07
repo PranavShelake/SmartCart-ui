@@ -16,6 +16,9 @@ import LoginPage from "./pages/auth/LoginPage";
 import DashboardPage from "./pages/dashboard/admin/DashboardPage";
 import ProductsPage from "./pages/dashboard/admin/ProductsPage";
 import CategoriesPage from './pages/dashboard/admin/CategoriesPage'
+import CartPage             from './pages/customer/CartPage'
+import CustomerOrdersPage   from './pages/customer/CustomerOrdersPage'
+import AdminOrdersPage      from './pages/admin/OrdersPage'
 import ToastContainer from "./components/ui/Toast";
 
 // ── Placeholder ───────────────────────────────────────────────
@@ -116,9 +119,9 @@ function Root() {
 
           {/* ADMIN */}
           <Route path="/admin/dashboard"  element={<DashboardPage />} />
-          <Route path="/admin/products" element={<ProductsPage />} />
+          <Route path="/admin/products"   element={<ProductsPage />} />
           <Route path="/admin/categories" element={<CategoriesPage />} />
-          <Route path="/admin/orders"     element={<ComingSoon label="Orders" />} />
+          <Route path="/admin/orders"     element={<AdminOrdersPage />} />       
           <Route path="/admin/customers"  element={<ComingSoon label="Customers" />} />
           <Route path="/admin/inventory"  element={<ComingSoon label="Inventory" />} />
           <Route path="/admin/coupons"    element={<ComingSoon label="Coupons" />} />
@@ -133,13 +136,15 @@ function Root() {
           <Route path="/seller/analytics" element={<ComingSoon label="Analytics" />} />
 
           {/* CUSTOMER */}
-          <Route path="/shop"     element={<ComingSoon label="Shop" />} />
-          <Route path="/orders"   element={<ComingSoon label="My Orders" />} />
-          <Route path="/wishlist" element={<ComingSoon label="Wishlist" />} />
+          <Route path="/shop"             element={<ComingSoon label="Shop" />} />
+          <Route path="/cart"             element={<CartPage />} />               
+          <Route path="/orders"           element={<CustomerOrdersPage />} />     
+          <Route path="/orders/:id"       element={<CustomerOrdersPage />} />     
+          <Route path="/wishlist"         element={<ComingSoon label="Wishlist" />} />
 
           {/* Shared */}
-          <Route path="/profile"  element={<ComingSoon label="Profile" />} />
-          <Route path="/settings" element={<ComingSoon label="Settings" />} />
+          <Route path="/profile"          element={<ComingSoon label="Profile" />} />
+          <Route path="/settings"         element={<ComingSoon label="Settings" />} />
         </Route>
 
         <Route path="*" element={<Navigate to="/login" replace />} />
