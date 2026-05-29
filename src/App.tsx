@@ -20,6 +20,8 @@ import CartPage             from './pages/customer/CartPage'
 import CustomerOrdersPage   from './pages/customer/CustomerOrdersPage'
 import AdminOrdersPage      from './pages/admin/OrdersPage'
 import ToastContainer from "./components/ui/Toast";
+import ShopPage           from './pages/customer/ShopPage'
+import ProductDetailPage  from './pages/customer/ProductDetailPage'
 
 // ── Placeholder ───────────────────────────────────────────────
 function ComingSoon({ label }: { label: string }) {
@@ -136,7 +138,8 @@ function Root() {
           <Route path="/seller/analytics" element={<ComingSoon label="Analytics" />} />
 
           {/* CUSTOMER */}
-          <Route path="/shop"             element={<ComingSoon label="Shop" />} />
+          <Route path="/shop"       element={<ShopPage />} />
+          <Route path="/shop/:slug" element={<ProductDetailPage />} />
           <Route path="/cart"             element={<CartPage />} />               
           <Route path="/orders"           element={<CustomerOrdersPage />} />     
           <Route path="/orders/:id"       element={<CustomerOrdersPage />} />     

@@ -74,6 +74,8 @@ After completing any task:
 - Never recreate `src/api/client.ts` — import `apiClient` from it
 - Never add business logic to API files — that goes in slice thunks
 - Never use React Query — use Redux Toolkit only
+- **Never write a file without the full path as the first line comment**
+  e.g. `// src/components/shop/ProductCard.tsx`
 
 ---
 
@@ -171,6 +173,13 @@ smart-cart-ui/
     │   ├── payments/
     │   │   └── RazorpayCheckout.tsx ✅ Razorpay modal trigger (needs testing)
     │   │
+    │   ├── shop/
+    │   │   ├── StarRating.tsx      ✅ Star display (filled/half/empty) + review count
+    │   │   ├── ProductCard.tsx     ✅ Grid card — image, price, rating, Add to Cart
+    │   │   ├── ShopFilters.tsx     ✅ Left sidebar — category, price, sort, stock
+    │   │   ├── ImageGallery.tsx    ✅ Main image + thumbnails + zoom lightbox
+    │   │   └── VariantSelector.tsx ✅ Size/color/option pill selectors
+    │   │
     │   └── ui/
     │       └── Toast.tsx           ✅ Toast container (success/error)
     │
@@ -180,15 +189,17 @@ smart-cart-ui/
     │
     ├── pages/
     │   ├── admin/
-    │   │   └── OrdersPage.tsx      ✅ All orders table + side panel + state machine
+    │   │   └── OrdersPage.tsx          ✅ All orders table + side panel + state machine
     │   │
     │   ├── auth/
-    │   │   └── LoginPage.tsx       ✅ Email + password login
+    │   │   └── LoginPage.tsx           ✅ Email + password login
     │   │
     │   ├── customer/
-    │   │   ├── CartPage.tsx        ✅ Cart items + order summary + checkout modal
-    │   │   ├── CustomerOrdersPage.tsx ✅ Order history + detail modal + cancel
-    │   │   └── PaymentPage.tsx     ✅ Razorpay payment page (needs testing)
+    │   │   ├── CartPage.tsx            ✅ Cart items + order summary + checkout modal
+    │   │   ├── CustomerOrdersPage.tsx  ✅ Order history + detail modal + cancel
+    │   │   ├── PaymentPage.tsx         ✅ Razorpay payment page (needs testing)
+    │   │   ├── ShopPage.tsx            ✅ Product grid + left sidebar filters + pagination
+    │   │   └── ProductDetailPage.tsx   ✅ Gallery, variants, qty, Add to Cart, reviews tab
     │   │
     │   └── dashboard/
     │       └── admin/
@@ -664,7 +675,8 @@ Authenticated (all share Layout):
   /seller/analytics         → ComingSoon            🔲
 
   CUSTOMER:
-  /shop                     → ComingSoon            🔲
+  /shop                     → ShopPage              ✅
+  /shop/:slug               → ProductDetailPage     ✅
   /cart                     → CartPage              ✅
   /orders                   → CustomerOrdersPage    ✅
   /orders/:id               → CustomerOrdersPage    ✅
@@ -788,8 +800,8 @@ interface Address {
 | Customer Cart | ✅ Complete | `/cart` | CUSTOMER | Coupon, checkout modal |
 | Customer Orders | ✅ Complete | `/orders` | CUSTOMER | History, detail, cancel |
 | Razorpay Payments | ⚠️ Built/Untested | `/customer/PaymentPage` | CUSTOMER | Needs live test |
-| Shop / Product Listing | 🔲 Not Built | `/shop` | CUSTOMER | **Build next — critical** |
-| Product Detail Page | 🔲 Not Built | `/shop/:slug` | CUSTOMER | Image gallery, variants |
+| Shop / Product Listing | ✅ Complete | `/shop` | CUSTOMER | Grid, filters, search, pagination |
+| Product Detail Page | ✅ Complete | `/shop/:slug` | CUSTOMER | Gallery, variants, reviews tab |
 | Admin Reviews | 🔲 Not Built | `/admin/reviews` | ADMIN | Backend ready |
 | Customer Returns | 🔲 Not Built | `/returns` | CUSTOMER | Backend ready |
 | Admin Returns | 🔲 Not Built | `/admin/returns` | ADMIN | Backend ready |
@@ -987,3 +999,4 @@ When adding any new page or feature, follow this checklist:
 | v1.4 | Sidebar cart badge, TopBar profile dropdown, role-based redirect | Sidebar.tsx, TopBar.tsx, App.tsx (RoleRedirect) |
 | v1.5 | Category filter fix — send category_slug=Name not slug field | ProductsPage.tsx |
 | v1.6 | FRONTEND_INSTRUCTIONS.md created | FRONTEND_INSTRUCTIONS.md |
+| v1.7 | Stage 4 — Shop page + Product detail page | ShopPage.tsx, ProductDetailPage.tsx, StarRating.tsx, ProductCard.tsx, ShopFilters.tsx, ImageGallery.tsx, VariantSelector.tsx, App.tsx |
