@@ -322,3 +322,30 @@ export interface CategoriesState extends AsyncSliceState {
   selectedCategory: Category | null
 }
 
+// ── Profile ───────────────────────────────────────────────────
+export interface UpdateProfilePayload {
+  first_name?: string
+  last_name?:  string
+  phone?:      string | null
+}
+
+export interface ChangePasswordPayload {
+  current_password: string
+  new_password:     string
+}
+
+// ── Address payloads ──────────────────────────────────────────
+export interface AddressCreatePayload {
+  address_type:  'billing' | 'shipping' | 'both'
+  full_name:     string
+  phone:         string
+  address_line1: string
+  address_line2?: string | null
+  city:          string
+  state:         string
+  postal_code:   string
+  country:       string
+  is_default?:   boolean
+}
+
+export interface AddressUpdatePayload extends AddressCreatePayload {}

@@ -9,10 +9,9 @@ export const initiatePayment = createAsyncThunk(
   async (orderId: number, { rejectWithValue }) => {
     try {
       return await paymentsApi.initiate({ order_id: orderId })
-    } catch (err: any) {
-      return rejectWithValue(
-        err.response?.data?.error?.message ?? 'Failed to initiate payment'
-      )
+    } catch (err: unknown) {
+      if (err instanceof Error) return rejectWithValue(err.message)
+      return rejectWithValue('Failed to initiate payment')
     }
   }
 )
@@ -20,15 +19,18 @@ export const initiatePayment = createAsyncThunk(
 export const verifyPayment = createAsyncThunk(
   'payments/verify',
   async (
-    payload: { razorpay_order_id: string; razorpay_payment_id: string; razorpay_signature: string },
+    payload: {
+      razorpay_order_id:   string
+      razorpay_payment_id: string
+      razorpay_signature:  string
+    },
     { rejectWithValue }
   ) => {
     try {
       return await paymentsApi.verify(payload)
-    } catch (err: any) {
-      return rejectWithValue(
-        err.response?.data?.error?.message ?? 'Payment verification failed'
-      )
+    } catch (err: unknown) {
+      if (err instanceof Error) return rejectWithValue(err.message)
+      return rejectWithValue('Payment verification failed')
     }
   }
 )
@@ -38,10 +40,9 @@ export const fetchPaymentStatus = createAsyncThunk(
   async (orderId: number, { rejectWithValue }) => {
     try {
       return await paymentsApi.getStatus(orderId)
-    } catch (err: any) {
-      return rejectWithValue(
-        err.response?.data?.error?.message ?? 'Failed to fetch payment status'
-      )
+    } catch (err: unknown) {
+      if (err instanceof Error) return rejectWithValue(err.message)
+      return rejectWithValue('Failed to fetch payment status')
     }
   }
 )
@@ -49,23 +50,23 @@ export const fetchPaymentStatus = createAsyncThunk(
 // ── State ─────────────────────────────────────────────────────
 
 interface PaymentsState {
-  razorpayOrder:  RazorpayOrderData | null
-  paymentStatus:  PaymentStatus | null
-  isInitiating:   boolean    // loading: creating razorpay order
-  isVerifying:    boolean    // loading: verifying payment
-  isCapturing:    boolean    // razorpay widget is open
-  error:          string | null
-  lastOrderId:    number | null
+  razorpayOrder: RazorpayOrderData | null
+  paymentStatus: PaymentStatus | null
+  isInitiating:  boolean
+  isVerifying:   boolean
+  isCapturing:   boolean
+  error:         string | null
+  lastOrderId:   number | null
 }
 
 const initialState: PaymentsState = {
-  razorpayOrder:  null,
-  paymentStatus:  null,
-  isInitiating:   false,
-  isVerifying:    false,
-  isCapturing:    false,
-  error:          null,
-  lastOrderId:    null,
+  razorpayOrder: null,
+  paymentStatus: null,
+  isInitiating:  false,
+  isVerifying:   false,
+  isCapturing:   false,
+  error:         null,
+  lastOrderId:   null,
 }
 
 // ── Slice ─────────────────────────────────────────────────────
@@ -75,7 +76,7 @@ const paymentsSlice = createSlice({
   initialState,
   reducers: {
     setCapturing(state, action) {
-      state.isCapturing = action.payload    // true = widget open
+      state.isCapturing = action.payload
     },
     clearPayment(state) {
       state.razorpayOrder = null
@@ -106,9 +107,9 @@ const paymentsSlice = createSlice({
     builder
       .addCase(verifyPayment.pending,   (state) => { state.isVerifying = true })
       .addCase(verifyPayment.fulfilled, (state, action) => {
-        state.isVerifying  = false
-        state.isCapturing  = false
-        state.lastOrderId  = action.payload.order_id
+        state.isVerifying = false
+        state.isCapturing = false
+        state.lastOrderId = action.payload.order_id
       })
       .addCase(verifyPayment.rejected,  (state, action) => {
         state.isVerifying = false

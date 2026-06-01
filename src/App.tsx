@@ -22,6 +22,7 @@ import AdminOrdersPage      from './pages/admin/OrdersPage'
 import ToastContainer from "./components/ui/Toast";
 import ShopPage           from './pages/customer/ShopPage'
 import ProductDetailPage  from './pages/customer/ProductDetailPage'
+import ProfilePage from './pages/customer/ProfilePage'
 
 // ── Placeholder ───────────────────────────────────────────────
 function ComingSoon({ label }: { label: string }) {
@@ -146,7 +147,7 @@ function Root() {
           <Route path="/wishlist"         element={<ComingSoon label="Wishlist" />} />
 
           {/* Shared */}
-          <Route path="/profile"          element={<ComingSoon label="Profile" />} />
+          <Route path="/profile" element={<ProfilePage />} />
           <Route path="/settings"         element={<ComingSoon label="Settings" />} />
         </Route>
 

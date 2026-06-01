@@ -1,33 +1,47 @@
+// src/components/cart/CartSummary.tsx
 import { useState, useEffect } from 'react'
-import { ShoppingBag, MapPin, CreditCard, Smartphone,
-         Landmark, Truck, Wallet, ChevronDown, X, Loader2 } from 'lucide-react'
+import {
+  ShoppingBag, MapPin, CreditCard, Smartphone,
+  Landmark, Truck, Wallet, ChevronDown, X, Loader2,
+  AlertTriangle,
+} from 'lucide-react'
 import { useAppDispatch, useAppSelector } from '../../store'
-import { placeOrder } from '../../store/slices/ordersSlice'
+import { placeOrder }    from '../../store/slices/ordersSlice'
 import { clearCartState } from '../../store/slices/cartSlice'
-import { useToast } from '../../store/slices/toastSlice'
-import { useNavigate } from 'react-router-dom'
-import { ordersApi } from '../../api/ordersApi'
+import {
+  initiatePayment,
+  verifyPayment,
+  setCapturing,
+  clearPayment,
+} from '../../store/slices/paymentsSlice'
+import { useToast }      from '../../store/slices/toastSlice'
+import { useNavigate }   from 'react-router-dom'
+import { useRazorpay }   from '../../hooks/useRazorpay'
+import { ordersApi }     from '../../api/ordersApi'
 import { formatCurrency } from '../../utils/formatCurrency'
-import CouponInput from './CouponInput'
+import { selectUser }    from '../../store/slices/authSlice'
+import CouponInput       from './CouponInput'
 import type { Address, Cart, PaymentMethod } from '../../types'
 
-// ── Static payment methods ────────────────────────────────────
+// ── Constants ─────────────────────────────────────────────────
+
+const COD_METHOD_ID = 6   // matches backend payment_method table id
+
 const PAYMENT_METHODS: PaymentMethod[] = [
-  { id: 1, name: 'UPI' },
+  { id: 1, name: 'UPI'         },
   { id: 2, name: 'CREDIT_CARD' },
-  { id: 3, name: 'DEBIT_CARD' },
+  { id: 3, name: 'DEBIT_CARD'  },
   { id: 4, name: 'NET_BANKING' },
-  { id: 5, name: 'WALLET' },
-  { id: 6, name: 'COD' },
+  { id: 5, name: 'WALLET'      },
 ]
 
 const PAYMENT_ICONS: Record<string, React.ReactNode> = {
-  UPI:         <Smartphone  size={16} />,
-  CREDIT_CARD: <CreditCard  size={16} />,
-  DEBIT_CARD:  <CreditCard  size={16} />,
-  NET_BANKING: <Landmark    size={16} />,
-  WALLET:      <Wallet      size={16} />,
-  COD:         <Truck       size={16} />,
+  UPI:         <Smartphone size={16} />,
+  CREDIT_CARD: <CreditCard size={16} />,
+  DEBIT_CARD:  <CreditCard size={16} />,
+  NET_BANKING: <Landmark   size={16} />,
+  WALLET:      <Wallet     size={16} />,
+  COD:         <Truck      size={16} />,
 }
 
 const PAYMENT_LABELS: Record<string, string> = {
@@ -40,16 +54,19 @@ const PAYMENT_LABELS: Record<string, string> = {
 }
 
 // ── Checkout Modal ────────────────────────────────────────────
+
 interface CheckoutModalProps {
-  cart:     Cart
-  coupon:   { code: string; discount: number } | null
-  onClose:  () => void
+  cart:    Cart
+  coupon:  { code: string; discount: number } | null
+  onClose: () => void
 }
 
 function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
-  const dispatch = useAppDispatch()
-  const toast    = useToast()
-  const navigate = useNavigate()
+  const dispatch       = useAppDispatch()
+  const toast          = useToast()
+  const navigate       = useNavigate()
+  const user           = useAppSelector(selectUser)
+  const { loadRazorpay } = useRazorpay()
 
   const [addresses,          setAddresses]          = useState<Address[]>([])
   const [shippingAddressId,  setShippingAddressId]  = useState<number | null>(null)
@@ -58,10 +75,13 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
   const [paymentMethodId,    setPaymentMethodId]    = useState<number>(1)
   const [orderNotes,         setOrderNotes]         = useState('')
   const [isLoadingAddresses, setIsLoadingAddresses] = useState(true)
-  const [isPlacing,          setIsPlacing]          = useState(false)
+  const [isProcessing,       setIsProcessing]       = useState(false)
   const [modalError,         setModalError]         = useState<string | null>(null)
+  const [step, setStep] = useState<'form' | 'processing' | 'paying'>('form')
 
-  // Fetch addresses on mount
+  const isCOD = paymentMethodId === COD_METHOD_ID
+
+  // ── Fetch addresses ───────────────────────────────────────
   useEffect(() => {
     ordersApi.getMyAddresses()
       .then(({ data }) => {
@@ -77,28 +97,36 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
       .finally(() => setIsLoadingAddresses(false))
   }, [])
 
-  // Sync billing when "same as shipping" is checked
   useEffect(() => {
     if (sameAsShipping && shippingAddressId) {
       setBillingAddressId(shippingAddressId)
     }
   }, [sameAsShipping, shippingAddressId])
 
+  // ── Pricing ───────────────────────────────────────────────
   const shipping = cart.subtotal >= 499 ? 0 : 49
   const tax      = Math.round(cart.subtotal * 0.18)
   const discount = coupon?.discount ?? 0
   const total    = cart.subtotal + shipping + tax - discount
 
+  // ── Main handler ──────────────────────────────────────────
   async function handlePlaceOrder() {
     if (!shippingAddressId || !billingAddressId) {
       setModalError('Please select shipping and billing addresses')
       return
     }
+    if (addresses.length === 0) {
+      setModalError('Please add an address first')
+      return
+    }
+
     setModalError(null)
-    setIsPlacing(true)
+    setIsProcessing(true)
+    setStep('processing')
 
     try {
-      const result = await dispatch(placeOrder({
+      // ── Step 1: Place order (always) ───────────────────────
+      const order = await dispatch(placeOrder({
         shipping_address_id: shippingAddressId,
         billing_address_id:  billingAddressId,
         payment_method_id:   paymentMethodId,
@@ -106,15 +134,94 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
         order_notes:         orderNotes.trim() || undefined,
       })).unwrap()
 
-      dispatch(clearCartState())
-      toast.success('Order placed successfully!')
-      onClose()
-      navigate(`/orders/${result.id}`)
+      // ── Step 2a: COD — done, navigate ─────────────────────
+      if (isCOD) {
+        dispatch(clearCartState())
+        toast.success('Order placed! Pay on delivery.')
+        onClose()
+        navigate(`/orders/${order.id}`)
+        return
+      }
+
+      // ── Step 2b: Online — initiate Razorpay ───────────────
+      setStep('paying')
+
+      const sdkLoaded = await loadRazorpay()
+      if (!sdkLoaded) {
+        setModalError('Failed to load payment gateway. Check your connection.')
+        setIsProcessing(false)
+        setStep('form')
+        return
+      }
+
+      const rzpData = await dispatch(initiatePayment(order.id)).unwrap()
+
+      // ── Step 3: Open Razorpay modal ───────────────────────
+      dispatch(setCapturing(true))
+
+      const options: RazorpayOptions = {
+        key:      rzpData.razorpay_key_id,
+        amount:   rzpData.amount,
+        currency: rzpData.currency,
+        name:     'Smart Cart',
+        order_id: rzpData.razorpay_order_id,
+        prefill: {
+          name:    user?.first_name ? `${user.first_name} ${user.last_name}` : undefined,
+          email:   user?.email    ?? undefined,
+          contact: user?.phone    ?? undefined,
+        },
+        theme: { color: '#7c3aed' },
+
+        // ── Payment success ─────────────────────────────────
+        handler: async (response: RazorpaySuccessResponse) => {
+          try {
+            await dispatch(verifyPayment({
+              razorpay_order_id:   response.razorpay_order_id,
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature:  response.razorpay_signature,
+            })).unwrap()
+
+            dispatch(clearCartState())
+            dispatch(clearPayment())
+            toast.success('Payment successful! Order confirmed.')
+            onClose()
+            navigate(`/orders/${order.id}`)
+          } catch {
+            // Verification failed after payment — critical, show support message
+            setModalError(
+              'Payment received but verification failed. ' +
+              'Please contact support with your order ID: ' + order.id
+            )
+            setIsProcessing(false)
+            setStep('form')
+            dispatch(setCapturing(false))
+          }
+        },
+
+        // ── Modal dismissed without paying ──────────────────
+        modal: {
+          ondismiss: () => {
+            dispatch(setCapturing(false))
+            dispatch(clearPayment())
+            setIsProcessing(false)
+            setStep('form')
+            setModalError(
+              `Payment cancelled. Your order #${order.id} is saved. ` +
+              'You can complete payment from My Orders.'
+            )
+          },
+        },
+      }
+
+      const rzp = new window.Razorpay(options)
+      rzp.open()
+
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'Failed to place order'
+      const msg = err instanceof Error ? err.message : 'Something went wrong'
       setModalError(msg)
-    } finally {
-      setIsPlacing(false)
+      setIsProcessing(false)
+      setStep('form')
+      dispatch(setCapturing(false))
     }
   }
 
@@ -123,6 +230,23 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
                      focus:outline-none focus:border-brand-primary transition-colors
                      cursor-pointer`
 
+  // ── Button label based on state ───────────────────────────
+  function buttonContent() {
+    if (step === 'processing') {
+      return <><Loader2 size={15} className="animate-spin" /> Placing Order…</>
+    }
+    if (step === 'paying') {
+      return <><Loader2 size={15} className="animate-spin" /> Opening Payment…</>
+    }
+    if (isCOD) {
+      return <><ShoppingBag size={15} /> Place Order (COD)</>
+    }
+    return <><CreditCard size={15} /> Proceed to Pay {formatCurrency(total)}</>
+  }
+
+  // ─────────────────────────────────────────────────────────
+  // RENDER
+  // ─────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 bg-surface-overlay backdrop-blur-sm z-50
                     flex items-center justify-center p-4 animate-fade-in">
@@ -134,76 +258,59 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
           <h2 className="text-base font-semibold text-white font-display">
             Complete Your Order
           </h2>
-          <button onClick={onClose}
-            className="text-slate-500 hover:text-white transition-colors p-1">
+          <button
+            onClick={onClose}
+            disabled={isProcessing}
+            className="text-slate-500 hover:text-white transition-colors p-1
+                       disabled:opacity-30 disabled:cursor-not-allowed"
+          >
             <X size={18} />
           </button>
         </div>
 
         {/* Body */}
         <div className="p-6 space-y-5 font-body">
-
           {isLoadingAddresses ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 size={24} className="animate-spin text-violet-400" />
             </div>
           ) : (
             <>
-              {/* Shipping Address */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5
-                                   font-display uppercase tracking-wider">
-                  Shipping Address
-                </label>
-                <div className="relative">
-                  <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2
-                                               text-slate-500 pointer-events-none" />
-                  <select
-                    className={`${selectCls} pl-8`}
-                    value={shippingAddressId ?? ''}
-                    onChange={e => setShippingAddressId(Number(e.target.value))}
-                  >
-                    {addresses.length === 0 && (
-                      <option value="">No addresses found</option>
-                    )}
-                    {addresses.map(a => (
-                      <option key={a.id} value={a.id}>
-                        {a.full_name} — {a.address_line1}, {a.city}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2
-                                                     text-slate-500 pointer-events-none" />
+              {/* No addresses warning */}
+              {addresses.length === 0 && (
+                <div className="flex items-center gap-3 px-4 py-3 rounded-xl
+                                bg-yellow-400/10 border border-yellow-400/20">
+                  <AlertTriangle size={15} className="text-yellow-400 flex-shrink-0" />
+                  <div>
+                    <p className="text-xs font-semibold text-yellow-400 font-display">
+                      No addresses found
+                    </p>
+                    <p className="text-xs text-yellow-400/70 font-body mt-0.5">
+                      Add an address in your{' '}
+                      <a href="/profile"
+                         className="underline hover:text-yellow-300">
+                        Profile
+                      </a>{' '}
+                      before checkout.
+                    </p>
+                  </div>
                 </div>
-              </div>
+              )}
 
-              {/* Billing Address */}
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="text-xs font-semibold text-slate-400
+              {/* Shipping Address */}
+              {addresses.length > 0 && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1.5
                                      font-display uppercase tracking-wider">
-                    Billing Address
+                    Shipping Address
                   </label>
-                  <label className="flex items-center gap-2 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={sameAsShipping}
-                      onChange={e => setSameAsShipping(e.target.checked)}
-                      className="accent-violet-600 cursor-pointer"
-                    />
-                    <span className="text-xs text-slate-400 font-body">
-                      Same as shipping
-                    </span>
-                  </label>
-                </div>
-                {!sameAsShipping && (
                   <div className="relative">
                     <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2
                                                  text-slate-500 pointer-events-none" />
                     <select
                       className={`${selectCls} pl-8`}
-                      value={billingAddressId ?? ''}
-                      onChange={e => setBillingAddressId(Number(e.target.value))}
+                      value={shippingAddressId ?? ''}
+                      onChange={e => setShippingAddressId(Number(e.target.value))}
                     >
                       {addresses.map(a => (
                         <option key={a.id} value={a.id}>
@@ -211,11 +318,55 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
                         </option>
                       ))}
                     </select>
-                    <ChevronDown size={13} className="absolute right-3 top-1/2 -translate-y-1/2
-                                                       text-slate-500 pointer-events-none" />
+                    <ChevronDown size={13}
+                      className="absolute right-3 top-1/2 -translate-y-1/2
+                                 text-slate-500 pointer-events-none" />
                   </div>
-                )}
-              </div>
+                </div>
+              )}
+
+              {/* Billing Address */}
+              {addresses.length > 0 && (
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-semibold text-slate-400
+                                       font-display uppercase tracking-wider">
+                      Billing Address
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={sameAsShipping}
+                        onChange={e => setSameAsShipping(e.target.checked)}
+                        className="accent-violet-600 cursor-pointer"
+                      />
+                      <span className="text-xs text-slate-400 font-body">
+                        Same as shipping
+                      </span>
+                    </label>
+                  </div>
+                  {!sameAsShipping && (
+                    <div className="relative">
+                      <MapPin size={14} className="absolute left-3 top-1/2 -translate-y-1/2
+                                                   text-slate-500 pointer-events-none" />
+                      <select
+                        className={`${selectCls} pl-8`}
+                        value={billingAddressId ?? ''}
+                        onChange={e => setBillingAddressId(Number(e.target.value))}
+                      >
+                        {addresses.map(a => (
+                          <option key={a.id} value={a.id}>
+                            {a.full_name} — {a.address_line1}, {a.city}
+                          </option>
+                        ))}
+                      </select>
+                      <ChevronDown size={13}
+                        className="absolute right-3 top-1/2 -translate-y-1/2
+                                   text-slate-500 pointer-events-none" />
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Payment Method */}
               <div>
@@ -228,8 +379,11 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
                     <button
                       key={pm.id}
                       onClick={() => setPaymentMethodId(pm.id)}
-                      className={`flex flex-col items-center gap-1.5 px-3 py-2.5 rounded-xl
-                                  border text-xs font-medium font-display transition-colors
+                      disabled={isProcessing}
+                      className={`flex flex-col items-center gap-1.5 px-3 py-2.5
+                                  rounded-xl border text-xs font-medium font-display
+                                  transition-colors disabled:opacity-50
+                                  disabled:cursor-not-allowed
                                   ${paymentMethodId === pm.id
                                     ? 'bg-brand-muted border-violet-500/40 text-violet-300'
                                     : 'border-border-base text-slate-400 hover:border-border-strong hover:text-slate-200'
@@ -240,6 +394,30 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
                     </button>
                   ))}
                 </div>
+
+                {/* COD info banner */}
+                {isCOD && (
+                  <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-xl
+                                  bg-blue-400/10 border border-blue-400/20">
+                    <Truck size={14} className="text-blue-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-blue-400 font-body leading-relaxed">
+                      Pay cash when your order is delivered.
+                      No online payment required now.
+                    </p>
+                  </div>
+                )}
+
+                {/* Online payment info */}
+                {!isCOD && (
+                  <div className="mt-3 flex items-start gap-2 px-3 py-2.5 rounded-xl
+                                  bg-violet-400/10 border border-violet-400/20">
+                    <CreditCard size={14} className="text-violet-400 flex-shrink-0 mt-0.5" />
+                    <p className="text-xs text-violet-300 font-body leading-relaxed">
+                      You'll be redirected to Razorpay's secure
+                      payment gateway to complete payment.
+                    </p>
+                  </div>
+                )}
               </div>
 
               {/* Order Notes */}
@@ -260,7 +438,7 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
                              px-3 py-2.5 text-sm text-text-primary placeholder:text-slate-600
                              font-body focus:outline-none focus:border-brand-primary
                              focus:ring-1 focus:ring-violet-500/20 transition-colors resize-none"
-                  placeholder="Any special instructions? (optional)"
+                  placeholder="Special instructions? (optional)"
                   value={orderNotes}
                   onChange={e => setOrderNotes(e.target.value)}
                 />
@@ -301,11 +479,12 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
                 </div>
               </div>
 
-              {/* Error banner */}
+              {/* Error / info banner */}
               {modalError && (
-                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl
+                <div className="flex items-start gap-2 px-3 py-2.5 rounded-xl
                                 bg-red-400/10 border border-red-400/20">
-                  <X size={14} className="text-red-400 flex-shrink-0" />
+                  <AlertTriangle size={14}
+                    className="text-red-400 flex-shrink-0 mt-0.5" />
                   <p className="text-sm text-red-400 font-body">{modalError}</p>
                 </div>
               )}
@@ -317,22 +496,25 @@ function CheckoutModal({ cart, coupon, onClose }: CheckoutModalProps) {
         <div className="flex gap-3 p-6 border-t border-border-base">
           <button
             onClick={onClose}
+            disabled={isProcessing}
             className="px-4 py-2.5 text-sm text-slate-400 hover:text-white
-                       transition-colors font-body"
+                       transition-colors font-body
+                       disabled:opacity-30 disabled:cursor-not-allowed"
           >
             Cancel
           </button>
           <button
             onClick={handlePlaceOrder}
-            disabled={isPlacing || isLoadingAddresses || addresses.length === 0}
+            disabled={
+              isProcessing        ||
+              isLoadingAddresses  ||
+              addresses.length === 0
+            }
             className="flex-1 btn-primary py-2.5 rounded-xl text-sm
                        disabled:opacity-50 disabled:cursor-not-allowed
                        flex items-center justify-center gap-2"
           >
-            {isPlacing
-              ? <><Loader2 size={15} className="animate-spin" /> Placing order…</>
-              : <><ShoppingBag size={15} /> Place Order</>
-            }
+            {buttonContent()}
           </button>
         </div>
       </div>
@@ -348,8 +530,8 @@ interface Props {
 }
 
 export default function CartSummary({ cart, isLoading }: Props) {
-  const [coupon,          setCoupon]          = useState<{ code: string; discount: number } | null>(null)
-  const [showCheckout,    setShowCheckout]    = useState(false)
+  const [coupon,       setCoupon]       = useState<{ code: string; discount: number } | null>(null)
+  const [showCheckout, setShowCheckout] = useState(false)
 
   const shipping = cart.subtotal >= 499 ? 0 : 49
   const tax      = Math.round(cart.subtotal * 0.18)
@@ -363,7 +545,6 @@ export default function CartSummary({ cart, isLoading }: Props) {
           Order Summary
         </h2>
 
-        {/* Line items */}
         <div className="space-y-3">
           <div className="flex justify-between text-sm font-body">
             <span className="text-slate-400">
@@ -408,7 +589,6 @@ export default function CartSummary({ cart, isLoading }: Props) {
           </div>
         </div>
 
-        {/* Coupon */}
         <div className="border-t border-border-subtle pt-4">
           <CouponInput
             subtotal={cart.subtotal}
@@ -418,7 +598,6 @@ export default function CartSummary({ cart, isLoading }: Props) {
           />
         </div>
 
-        {/* CTA */}
         <div className="space-y-3 pt-1">
           <button
             onClick={() => setShowCheckout(true)}
@@ -430,7 +609,6 @@ export default function CartSummary({ cart, isLoading }: Props) {
             <ShoppingBag size={16} />
             Proceed to Checkout
           </button>
-
           <p className="text-center text-xs text-slate-500 font-body">
             <a href="/shop"
                className="text-violet-400 hover:text-violet-300 transition-colors">
@@ -440,7 +618,6 @@ export default function CartSummary({ cart, isLoading }: Props) {
         </div>
       </div>
 
-      {/* Checkout modal */}
       {showCheckout && (
         <CheckoutModal
           cart={cart}
