@@ -30,12 +30,20 @@
 //   );
 // }
 
+import { useAppSelector } from '../../../store'
+import { selectDisplayName } from '../../../store/slices/authSlice'
+
 // src/pages/dashboard/admin/DashboardPage.tsx
 export default function DashboardPage() {
+  const displayName = useAppSelector(selectDisplayName)
+  const firstName = displayName.split(' ')[0] || 'there'
+
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h2 className="text-[28px] font-bold text-white font-display leading-tight">Morning, Aryan</h2>
+        <h2 className="text-[28px] font-bold text-white font-display leading-tight">
+          Morning, {firstName}
+        </h2>
         <p className="text-slate-500 text-[14px] mt-1">Here's what's happening with your store today.</p>
       </div>
 
