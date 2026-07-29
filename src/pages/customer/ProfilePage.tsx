@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import {
   User, MapPin, Shield, Plus, AlertCircle,
-  ChevronRight, Loader2,
+  ChevronRight,
 } from 'lucide-react'
 import { useToast } from '../../store/slices/toastSlice'
 import { userApi } from '../../api/userApi'
@@ -51,6 +51,27 @@ function AddressesTab() {
 
   useEffect(() => { loadAddresses() }, [])
 
+  function parseValidationErrors(error: unknown) {
+    const response = (error as any)?.response
+    const detail = response?.data?.detail
+    if (!Array.isArray(detail)) return null
+
+    const fieldErrors: Record<string, string> = {}
+    detail.forEach((item: any) => {
+      const field = Array.isArray(item.loc)
+        ? String(item.loc[item.loc.length - 1])
+        : ''
+      const message = typeof item.msg === 'string'
+        ? item.msg
+        : ''
+      if (field && message) {
+        fieldErrors[field] = message
+      }
+    })
+
+    return Object.keys(fieldErrors).length > 0 ? fieldErrors : null
+  }
+
   async function handleSave(payload: AddressCreatePayload, id?: number) {
     setIsSaving(true)
     try {
@@ -64,9 +85,15 @@ function AddressesTab() {
       setShowModal(false)
       setEditTarget(null)
       await loadAddresses()
+      return null
     } catch (err: unknown) {
+      const fieldErrors = parseValidationErrors(err)
+      if (fieldErrors) {
+        return fieldErrors
+      }
       const msg = err instanceof Error ? err.message : 'Failed to save address'
       toast.error(msg)
+      return null
     } finally {
       setIsSaving(false)
     }

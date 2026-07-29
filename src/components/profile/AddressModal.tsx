@@ -7,7 +7,7 @@ interface Props {
   mode:      'add' | 'edit'
   initial?:  Address | null
   onClose:   () => void
-  onSave:    (payload: AddressCreatePayload, id?: number) => Promise<void>
+  onSave:    (payload: AddressCreatePayload, id?: number) => Promise<Record<string, string> | null>
   isSaving:  boolean
 }
 
@@ -39,8 +39,13 @@ export default function AddressModal({
 
   function validate() {
     const e: Record<string, string> = {}
+    const phoneValue = phone.trim()
+    const normalizedPhone = phoneValue.replace(/\D/g, '')
+
     if (!fullName.trim())     e.full_name     = 'Full name is required'
-    if (!phone.trim())        e.phone         = 'Phone is required'
+    if (!phoneValue)          e.phone         = 'Phone is required'
+    else if (!/^[6-9]\d{9}$/.test(normalizedPhone))
+      e.phone = 'Enter a valid Indian mobile number'
     if (!addressLine1.trim()) e.address_line1 = 'Address is required'
     if (!city.trim())         e.city          = 'City is required'
     if (!state.trim())        e.state         = 'State is required'
@@ -53,7 +58,8 @@ export default function AddressModal({
 
   async function handleSubmit() {
     if (!validate()) return
-    await onSave({
+    setErrors({})
+    const fieldErrors = await onSave({
       full_name:     fullName.trim(),
       phone:         phone.trim(),
       address_line1: addressLine1.trim(),
@@ -65,6 +71,10 @@ export default function AddressModal({
       address_type:  addressType,
       is_default:    isDefault,
     }, initial?.id)
+
+    if (fieldErrors) {
+      setErrors(fieldErrors)
+    }
   }
 
   const inputCls = (field: string) =>
